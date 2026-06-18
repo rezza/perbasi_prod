@@ -1,0 +1,27 @@
+# To prevent access to .env and other files
+<Files .*>
+# Apache 2.2
+<IfModule !mod_authz_core.c>
+Order deny,allow
+Deny from all
+</IfModule>
+# Apache 2.4
+<IfModule mod_authz_core.c>
+Require all denied
+</IfModule>
+</Files>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Jangan rewrite jika file/folder benar-benar ada di root (misal .htaccess itu sendiri)
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Root "/" langsung ke public/index.php
+    RewriteRule ^$ public/index.php [L]
+
+    # Semua request lain → public/ (aset statis CSS/JS/gambar, atau routing Laravel)
+    RewriteRule ^(.*)$ public/$1 [L,QSA]
+</IfModule>

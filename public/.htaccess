@@ -1,0 +1,38 @@
+<IfModule mod_rewrite.c>
+    <IfModule mod_negotiation.c>
+        Options -MultiViews -Indexes
+    </IfModule>
+
+    # CORS untuk file statis (gambar, dll) yang dilayani langsung oleh Apache
+    # tanpa melewati Laravel. Echo origin yang diizinkan agar bisa diload
+    # oleh dashboard admin (admin.perbasipemalang.org) dan localhost dev.
+    <IfModule mod_headers.c>
+        SetEnvIf Origin "^https?://(([a-z0-9-]+\.)?perbasipemalang\.org|localhost(:\d+)?|127\.0\.0\.1(:\d+)?)$" CORS_ALLOW_ORIGIN=$0
+        Header set Access-Control-Allow-Origin "%{CORS_ALLOW_ORIGIN}e" env=CORS_ALLOW_ORIGIN
+        Header merge Vary "Origin"
+        Header set Access-Control-Allow-Methods "GET, POST, OPTIONS" env=CORS_ALLOW_ORIGIN
+        Header set Access-Control-Allow-Headers "Authorization, Content-Type, X-Requested-With" env=CORS_ALLOW_ORIGIN
+        Header set Access-Control-Max-Age "86400" env=CORS_ALLOW_ORIGIN
+    </IfModule>
+
+    RewriteEngine On
+
+    # Handle Authorization Header
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Handle X-XSRF-Token Header
+    RewriteCond %{HTTP:x-xsrf-token} .
+    RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
+
+    # Redirect Trailing Slashes If Not A Folder...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+    RewriteRule ^ %1 [L,R=301]
+
+    # Send Requests To Front Controller...
+    # Catatan: sengaja tidak cek !-d agar folder storage (news/, sponsor/, dll)
+    # tidak mengembalikan 403 — semua request yang bukan file diteruskan ke Laravel.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>
