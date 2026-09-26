@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'PERBASI Kabupaten Pemalang')</title>
     <meta name="description" content="Persatuan Bola Basket Seluruh Indonesia (PERBASI) Kabupaten Pemalang - Membangun Prestasi Basket Pemalang">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -100,7 +101,29 @@
                     <a href="{{ route('compro.agenda') }}" class="nav-link {{ request()->routeIs('compro.agenda', 'compro.agenda.detail') ? 'active text-brandred-600' : 'hover:text-brandred-600' }}">Agenda &amp; Jadwal</a>
                     <a href="{{ route('compro.sponsor') }}" class="nav-link {{ request()->routeIs('compro.sponsor', 'compro.sponsor.detail') ? 'active text-brandred-600' : 'hover:text-brandred-600' }}">Sponsor &amp; Mitra</a>
                     <a href="{{ route('compro.berita') }}" class="nav-link {{ request()->routeIs('compro.berita', 'compro.berita.detail') ? 'active text-brandred-600' : 'hover:text-brandred-600' }}">Berita &amp; Artikel</a>
-                    <a href="https://member.perbasipemalang.org" target="_blank" rel="noopener noreferrer" class="nav-link hover:text-brandred-600">Login Member</a>
+                    @if(session('jwt_token'))
+                        <div class="relative" id="userMenuWrap">
+                            <button type="button" id="userMenuBtn" class="nav-link flex items-center gap-1.5 hover:text-brandred-600">
+                                <i class="fas fa-circle-user text-base"></i>
+                                <span class="max-w-[140px] truncate">{{ $comproUserName ?? 'Member' }}</span>
+                                <i class="fas fa-chevron-down text-[10px] mt-0.5"></i>
+                            </button>
+                            <div id="userMenuDropdown" class="hidden absolute top-full right-0 mt-2 w-52 bg-navy-900 rounded-xl shadow-xl overflow-hidden z-50">
+                                <a href="{{ route('compro.sso.member') }}" target="_blank" rel="noopener noreferrer" class="block px-4 py-3 text-sm text-gray-200 hover:bg-white/10 hover:text-white">
+                                    <i class="fas fa-gauge mr-2 text-xs opacity-60 w-4"></i> Dashboard
+                                </a>
+                                <form method="POST" action="{{ route('compro.logout') }}">
+                                    @csrf
+                                    <button type="submit" class="block w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-white/10 hover:text-white">
+                                        <i class="fas fa-right-from-bracket mr-2 text-xs opacity-60 w-4"></i> Keluar
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    @else
+                        <a href="https://member.perbasipemalang.org" target="_blank" rel="noopener noreferrer" class="nav-link hover:text-brandred-600">Login Member</a>
+                        <a href="{{ route('compro.login') }}" class="nav-link {{ request()->routeIs('compro.login', 'compro.register') ? 'active text-brandred-600' : 'hover:text-brandred-600' }}">Masuk</a>
+                    @endif
                 </div>
 
                 <button id="mobileBtn" class="lg:hidden text-white text-xl">
@@ -119,13 +142,49 @@
                 <a href="{{ route('compro.agenda') }}" class="block py-2 hover:text-brandred-600">Agenda &amp; Jadwal</a>
                 <a href="{{ route('compro.sponsor') }}" class="block py-2 hover:text-brandred-600">Sponsor &amp; Mitra</a>
                 <a href="{{ route('compro.berita') }}" class="block py-2 hover:text-brandred-600">Berita &amp; Artikel</a>
-                <a href="https://member.perbasipemalang.org" target="_blank" rel="noopener noreferrer" class="block py-2 hover:text-brandred-600">Login Member</a>
+                @if(session('jwt_token'))
+                    <div class="py-2 mt-2 border-t border-white/10 pt-3">
+                        <div class="flex items-center gap-2 text-gray-300 font-semibold mb-2">
+                            <i class="fas fa-circle-user"></i> {{ $comproUserName ?? 'Member' }}
+                        </div>
+                        <a href="{{ route('compro.sso.member') }}" target="_blank" rel="noopener noreferrer" class="block py-1 pl-6 hover:text-brandred-600">Dashboard</a>
+                        <form method="POST" action="{{ route('compro.logout') }}">
+                            @csrf
+                            <button type="submit" class="block py-1 pl-6 hover:text-brandred-600 text-left w-full">Keluar</button>
+                        </form>
+                    </div>
+                @else
+                    <a href="https://member.perbasipemalang.org" target="_blank" rel="noopener noreferrer" class="block py-2 hover:text-brandred-600">Login Member</a>
+                    <a href="{{ route('compro.login') }}" class="block py-2 hover:text-brandred-600">Masuk</a>
+                @endif
             </div>
         </div>
     </nav>
 
     {{-- ==================== CONTENT ==================== --}}
     <main class="flex-1">
+        @if(session('success') || session('info') || session('error') || $errors->any())
+        <div class=" bg-navy-900 w-full py-4">
+            <div class="max-w-3xl mx-auto px-4 pt-24">
+                @if(session('success'))
+                    <div class="bg-green-50 text-green-700 border border-green-200 rounded-lg px-4 py-3 mb-4 text-sm">{{ session('success') }}</div>
+                @endif
+                @if(session('info'))
+                    <div class="bg-blue-50 text-blue-700 border border-blue-200 rounded-lg px-4 py-3 mb-4 text-sm">{{ session('info') }}</div>
+                @endif
+                @if(session('error'))
+                    <div class="bg-red-50 text-red-700 border border-red-200 rounded-lg px-4 py-3 mb-4 text-sm">{{ session('error') }}</div>
+                @endif
+                @if($errors->any())
+                    <div class="bg-red-50 text-red-700 border border-red-200 rounded-lg px-4 py-3 mb-4 text-sm">
+                        <ul class="list-disc list-inside">
+                            @foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach
+                        </ul>
+                    </div>
+                @endif
+            </div>
+            </div>
+        @endif
         @yield('content')
     </main>
 
@@ -178,6 +237,22 @@
         document.getElementById('mobileBtn')?.addEventListener('click', () => {
             document.getElementById('mobileMenu').classList.toggle('hidden');
         });
+
+        (function () {
+            const btn = document.getElementById('userMenuBtn');
+            const dropdown = document.getElementById('userMenuDropdown');
+            if (!btn || !dropdown) return;
+
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                dropdown.classList.toggle('hidden');
+            });
+            document.addEventListener('click', function (e) {
+                if (!dropdown.classList.contains('hidden') && !dropdown.contains(e.target) && e.target !== btn) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+        })();
 
         (function () {
             const nav = document.getElementById('mainNav');

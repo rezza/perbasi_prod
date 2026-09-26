@@ -121,6 +121,40 @@ class ResponseController {
                 return 'Maksimal 3 banner program. Hapus salah satu terlebih dahulu.';
             case 71:
                 return 'Data ini terelasi dengan data lain';
+            case 80:
+                return 'Event tidak ditemukan';
+            case 81:
+                return 'Pendaftaran event ini sedang tidak dibuka';
+            case 82:
+                return 'Anda belum terdaftar sebagai anggota perkumpulan manapun';
+            case 83:
+                return 'Perkumpulan ini tidak diperbolehkan mendaftar pada event ini';
+            case 84:
+                return 'Anda sudah terdaftar pada event ini';
+            case 85:
+                return 'Kelengkapan data belum lengkap sesuai syarat event';
+            case 86:
+                return 'Peserta event tidak ditemukan';
+            case 87:
+                return 'Pendaftaran peserta ini sudah diproses sebelumnya';
+            case 88:
+                return 'Berita/banner tidak ditemukan atau bukan banner';
+            case 89:
+                return 'Persyaratan tidak ditemukan';
+            case 90:
+                return 'Key persyaratan sudah digunakan';
+            case 91:
+                return 'Pertandingan tidak ditemukan';
+            case 92:
+                return 'Perkumpulan Tim A dan Tim B tidak boleh sama';
+            case 93:
+                return 'Jam check-in tidak boleh lebih dekat dari 2 jam sebelum jam mulai pertandingan';
+            case 94:
+                return 'Anda tidak memenuhi syarat untuk check-in pada pertandingan ini';
+            case 95:
+                return 'Check-in untuk pertandingan ini belum diaktifkan';
+            case 96:
+                return 'Validasi jadwal gagal, periksa kembali isian tiap baris';
             case 97:
                 return 'Data tidak ditemukan';
             case 98:

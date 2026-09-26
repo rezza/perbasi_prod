@@ -35,10 +35,11 @@
                         <div class="text-2xl font-black leading-none">{{ $d ? $d->format('d') : '--' }}</div>
                         <div class="text-xs mt-1 uppercase">{{ $d ? $d->translatedFormat('M Y') : '' }}</div>
                     </div>
-                    <div class="flex-1">
+                    <div class="flex-1 min-w-0 w-full">
                         <span class="inline-block text-xs bg-brandred-600 text-white px-2 py-0.5 rounded mb-1">Agenda</span>
                         <h3 class="font-bold text-navy-900 text-lg">{{ $e->judul }}</h3>
                         <p class="text-sm text-gray-600 mt-1">{{ \Illuminate\Support\Str::limit(strip_tags($e->konten), 160) }}</p>
+                        @include('compro.partials.event-info-bar', ['info' => $e->pertandingan ?? null, 'pos' => 'relative mt-3 w-full'])
                     </div>
                     <span class="hidden md:inline-block bg-navy-700 hover:bg-navy-800 text-white px-4 py-2 rounded-lg text-sm font-semibold">Detail</span>
                 </a>

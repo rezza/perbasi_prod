@@ -38,7 +38,10 @@
             <article class="lg:col-span-2 bg-white rounded-2xl shadow-lg overflow-hidden card-hover">
                 <a href="{{ route('compro.berita.detail', $featured->id) }}" class="block">
                     @if(!empty($featured->filename ?? null))
-                        <img src="{{ asset('news/'.$featured->filename) }}" alt="{{ $featured->judul }}" class="w-full h-72 object-cover">
+                        <div class="relative">
+                            <img src="{{ asset('news/'.$featured->filename) }}" alt="{{ $featured->judul }}" class="w-full h-72 object-cover">
+                            @include('compro.partials.event-info-bar', ['info' => $featured->pertandingan ?? null, 'size' => 'lg'])
+                        </div>
                     @else
                         <div class="h-72 bg-gradient-to-br from-navy-800 to-brandred-700 flex items-center justify-center">
                             <i class="fas fa-basketball text-white text-7xl opacity-70"></i>
@@ -74,7 +77,10 @@
             @foreach($rest as $a)
             <a href="{{ route('compro.berita.detail', $a->id) }}" class="bg-white rounded-2xl shadow card-hover overflow-hidden block">
                 @if(!empty($a->filename ?? null))
-                    <img src="{{ asset('news/'.$a->filename) }}" alt="{{ $a->judul }}" class="h-44 w-full object-cover">
+                    <div class="relative">
+                        <img src="{{ asset('news/'.$a->filename) }}" alt="{{ $a->judul }}" class="h-44 w-full object-cover">
+                        @include('compro.partials.event-info-bar', ['info' => $a->pertandingan ?? null])
+                    </div>
                 @else
                     <div class="h-44 bg-gradient-to-br from-navy-700 to-navy-900 flex items-center justify-center">
                         <i class="fas fa-newspaper text-white text-5xl opacity-70"></i>

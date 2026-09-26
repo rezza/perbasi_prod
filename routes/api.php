@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('/login', [\App\Http\Controllers\APIUserController::class, 'submitLogin']);
 Route::post('/login-admin', [\App\Http\Controllers\APIUserController::class, 'submitLoginAdmin']);
 Route::post('/register', [\App\Http\Controllers\APIUserController::class, 'registerUser']);
+Route::post('/sso/exchange', [\App\Http\Controllers\APIUserController::class, 'ssoExchange']);
 
 Route::post('/helper/provinsi', [\App\Http\Controllers\APIDashboardController::class, 'getProvinsi']);
 Route::post('/helper/kota', [\App\Http\Controllers\APIDashboardController::class, 'getKota']);
@@ -158,7 +159,53 @@ Route::middleware(['jwt.verify'])->group(function () {
 
     // Helper Data
     Route::post('/helper/splashscreen', [\App\Http\Controllers\APIDashboardController::class, 'getHelper']);
-    
+
+    // Perkumpulan the logged-in user is an approved member of
+    Route::post('/user/my-perkumpulan', [\App\Http\Controllers\APIUserController::class, 'myPerkumpulan']);
+
+    // Master Persyaratan Event
+    Route::post('/master-persyaratan-event/list', [\App\Http\Controllers\APIMasterPersyaratanEventController::class, 'getList']);
+    Route::post('/master-persyaratan-event/create', [\App\Http\Controllers\APIMasterPersyaratanEventController::class, 'create']);
+    Route::post('/master-persyaratan-event/update', [\App\Http\Controllers\APIMasterPersyaratanEventController::class, 'update']);
+    Route::post('/master-persyaratan-event/delete', [\App\Http\Controllers\APIMasterPersyaratanEventController::class, 'delete']);
+
+    // Event Pendaftaran - Admin config
+    Route::post('/event-pendaftaran/create', [\App\Http\Controllers\APIEventPendaftaranController::class, 'createEvent']);
+    Route::post('/event-pendaftaran/bulk-create', [\App\Http\Controllers\APIEventPendaftaranController::class, 'bulkCreateEvents']);
+    Route::post('/event-pendaftaran/bulk-update', [\App\Http\Controllers\APIEventPendaftaranController::class, 'bulkUpdateEvents']);
+    Route::post('/event-pendaftaran/list-by-news', [\App\Http\Controllers\APIEventPendaftaranController::class, 'getListByNews']);
+    Route::post('/event-pendaftaran/list', [\App\Http\Controllers\APIEventPendaftaranController::class, 'getListEvent']);
+    Route::post('/event-pendaftaran/detail', [\App\Http\Controllers\APIEventPendaftaranController::class, 'getDetailEvent']);
+    Route::post('/event-pendaftaran/update', [\App\Http\Controllers\APIEventPendaftaranController::class, 'updateEvent']);
+    Route::post('/event-pendaftaran/update-status', [\App\Http\Controllers\APIEventPendaftaranController::class, 'updateStatusEvent']);
+    Route::post('/event-pendaftaran/delete', [\App\Http\Controllers\APIEventPendaftaranController::class, 'deleteEvent']);
+
+    // Event Pendaftaran - Member browse & register
+    Route::post('/event-pendaftaran/detail-for-member', [\App\Http\Controllers\APIEventPendaftaranController::class, 'detailEventForMember']);
+    Route::post('/event-peserta/upload-file', [\App\Http\Controllers\APIEventPendaftaranController::class, 'uploadFilePeserta']);
+    Route::post('/event-peserta/daftar', [\App\Http\Controllers\APIEventPendaftaranController::class, 'daftarPeserta']);
+    Route::post('/event-peserta/status', [\App\Http\Controllers\APIEventPendaftaranController::class, 'statusPeserta']);
+    Route::post('/event-peserta/my-list', [\App\Http\Controllers\APIEventPendaftaranController::class, 'myEventList']);
+
+    // Event Pendaftaran - Admin approval & report
+    Route::post('/event-peserta/list', [\App\Http\Controllers\APIEventPendaftaranController::class, 'getListPeserta']);
+    Route::post('/event-peserta/detail', [\App\Http\Controllers\APIEventPendaftaranController::class, 'getDetailPeserta']);
+    Route::post('/event-peserta/approve', [\App\Http\Controllers\APIEventPendaftaranController::class, 'approvePeserta']);
+    Route::post('/event-peserta/reject', [\App\Http\Controllers\APIEventPendaftaranController::class, 'rejectPeserta']);
+    Route::post('/event-peserta/report', [\App\Http\Controllers\APIEventPendaftaranController::class, 'reportPeserta']);
+    Route::post('/event-peserta/bulk-add', [\App\Http\Controllers\APIEventPendaftaranController::class, 'bulkAddPeserta']);
+    Route::post('/event-peserta/search-member', [\App\Http\Controllers\APIEventPendaftaranController::class, 'searchMemberForEvent']);
+
+    // Pertandingan (jadwal + check-in) - Admin config
+    Route::post('/pertandingan/save', [\App\Http\Controllers\APIPertandinganController::class, 'savePertandingan']);
+    Route::post('/pertandingan/detail', [\App\Http\Controllers\APIPertandinganController::class, 'getDetailPertandingan']);
+    Route::post('/pertandingan/list', [\App\Http\Controllers\APIPertandinganController::class, 'getListPertandingan']);
+
+    // Pertandingan - Member check-in
+    Route::post('/pertandingan/detail-for-member', [\App\Http\Controllers\APIPertandinganController::class, 'detailForMember']);
+    Route::post('/pertandingan/checkin', [\App\Http\Controllers\APIPertandinganController::class, 'submitCheckin']);
+    Route::post('/pertandingan/attendance-list', [\App\Http\Controllers\APIPertandinganController::class, 'getAttendanceList']);
+
     // Dashboard
     Route::post('/member/dashboard', [\App\Http\Controllers\APIDashboardController::class, 'getMemberDashboard']);
     Route::post('/dashboard/news/detail', [\App\Http\Controllers\APIDashboardController::class, 'getNewsDetail']);

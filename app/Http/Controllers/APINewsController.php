@@ -75,6 +75,7 @@ class APINewsController extends Controller
                 'message' => 'News berhasil ditambahkan',
                 'data' => [
                     'id' => $news->id,
+                    'id_enc' => md5($news->id . $this->news->imbuhan),
                     'judul' => $judul,
                     'kategori' => $kategori,
                     'tanggal' => $tanggal
@@ -134,6 +135,8 @@ class APINewsController extends Controller
                 ORDER BY n.created_at DESC
                 ', $param
             );
+
+            $newsList = (new \App\Pertandingan())->attachSummaryToNewsRows($newsList);
 
             $paged = GlobalHelperController::paginate($newsList, $request);
 
@@ -210,6 +213,9 @@ class APINewsController extends Controller
             if (!$news) {
                 return ResponseController::sendError(48); // News tidak ditemukan
             }
+            // Client-facing id must be the encoded one (what edit/delete expect);
+            // the raw PK stays internal (compro web still reads it).
+            $news->id = $news->id_news;
             return ResponseController::sendSuccess([
                 'message' => 'Detail news berhasil diambil',
                 'data' => $news

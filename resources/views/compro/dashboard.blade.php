@@ -18,6 +18,15 @@
         <div class="absolute inset-0" style="background-image: linear-gradient(rgba(11,30,63,0.85), rgba(11,30,63,0.6)), url('https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=1920&q=80'); background-size: cover; background-position: center;"></div>
     @endif
 
+    {{-- Info event per slide (bottom of the hero, above the overlapping program cards) --}}
+    @if(!empty($banners) && count($banners) > 0)
+        @foreach($banners as $i => $banner)
+        <div class="hero-info max-w-7xl {{ $i === 0 ? '' : 'hidden' }}">
+            @include('compro.partials.event-info-bar', ['info' => $banner->pertandingan ?? null, 'size' => 'lg', 'pos' => 'absolute inset-x-0 bottom-20 md:bottom-24'])
+        </div>
+        @endforeach
+    @endif
+
     {{-- Content --}}
     <div class="relative z-10 h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-4 flex flex-col justify-center" style="padding-top: 80px; padding-bottom: 48px;">
         <div class="max-w-2xl">
@@ -142,7 +151,10 @@
             @foreach($upcomingAgenda as $ev)
             <a href="{{ route('compro.agenda.detail', $ev->id) }}" class="bg-white rounded-xl overflow-hidden shadow card-hover block">
                 @if(!empty($ev->filename))
-                    <img src="{{ asset('news/'.$ev->filename) }}" class="h-44 w-full object-cover" alt="{{ $ev->judul }}">
+                    <div class="relative">
+                        <img src="{{ asset('news/'.$ev->filename) }}" class="h-44 w-full object-cover" alt="{{ $ev->judul }}">
+                        @include('compro.partials.event-info-bar', ['info' => $ev->pertandingan ?? null])
+                    </div>
                 @else
                     <div class="h-44 bg-gradient-to-br from-navy-700 to-navy-900 flex items-center justify-center">
                         <i class="fas fa-calendar-alt text-white text-5xl opacity-70"></i>
@@ -176,7 +188,10 @@
             @foreach($latestNews as $n)
             <a href="{{ route('compro.berita.detail', $n->id) }}" class="bg-white rounded-xl overflow-hidden shadow card-hover block">
                 @if(!empty($n->filename))
-                    <img src="{{ asset('news/'.$n->filename) }}" class="h-44 w-full object-cover" alt="{{ $n->judul }}">
+                    <div class="relative">
+                        <img src="{{ asset('news/'.$n->filename) }}" class="h-44 w-full object-cover" alt="{{ $n->judul }}">
+                        @include('compro.partials.event-info-bar', ['info' => $n->pertandingan ?? null])
+                    </div>
                 @else
                     <div class="h-44 bg-gradient-to-br from-navy-700 to-brandred-700 flex items-center justify-center">
                         <i class="fas fa-newspaper text-white text-5xl opacity-70"></i>
@@ -255,6 +270,7 @@
 (function () {
     const slides = document.querySelectorAll('.hero-slide');
     const texts  = document.querySelectorAll('.hero-text');
+    const infos  = document.querySelectorAll('.hero-info');
     const dots   = document.querySelectorAll('.hero-dot');
     if (slides.length <= 1) return;
 
@@ -264,6 +280,7 @@
         slides[current].classList.remove('opacity-100');
         slides[current].classList.add('opacity-0');
         texts[current].classList.add('hidden');
+        if (infos[current]) infos[current].classList.add('hidden');
         if (dots[current]) {
             dots[current].classList.remove('bg-white', 'w-6');
             dots[current].classList.add('bg-white/40', 'w-2');
@@ -274,6 +291,7 @@
         slides[current].classList.add('opacity-100');
         slides[current].classList.remove('opacity-0');
         texts[current].classList.remove('hidden');
+        if (infos[current]) infos[current].classList.remove('hidden');
         if (dots[current]) {
             dots[current].classList.add('bg-white', 'w-6');
             dots[current].classList.remove('bg-white/40', 'w-2');

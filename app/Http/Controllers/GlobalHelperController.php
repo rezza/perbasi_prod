@@ -125,7 +125,7 @@ class GlobalHelperController extends Controller{
             $page = 1;
         }
 
-        $perPage = (int) ($request->input('per_page') ?: 20);
+        $perPage = (int) ($request->input('per_page') ?: 100);
         if ($perPage < 1) {
             $perPage = 20;
         }

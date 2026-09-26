@@ -989,7 +989,7 @@ class APIPengajuanController extends Controller
                     WHERE 1=1
                     ' . (!empty($tahun) ? ' AND pp.tahun = '.$tahun : '') . '
                     ' . (!empty($id_perkumpulan) ? ' AND pk.id = '.$id_perkumpulan : '') . '
-                    ' . ($status !== null && $status !== '' ? ' AND pp.status = '.$status : ' AND pp.status in (0,1) ') . '
+                    ' . ($status !== null && $status !== '' ? ' AND pp.status = '.$status : '') . '
                     ' . ($id_user ? ' AND pp.id_user = '.$id_user : '') . '
                     ' . ($non_anggota == 1 ? ' AND (pp.id_perkumpulan IS NULL OR pp.id_perkumpulan = "")' : '') . '
                     ' . (!empty($keyword) ? ' AND (u.nama LIKE "%'.$keyword.'%" OR u.email LIKE "%'.$keyword.'%")' : '') . '
@@ -1029,7 +1029,7 @@ class APIPengajuanController extends Controller
                     WHERE 1=1
                     ' . (!empty($tahun) ? ' AND pn.tahun = '.$tahun : '') . '
                     ' . (!empty($id_perkumpulan) ? ' AND pk.id = '.$id_perkumpulan : '') . '
-                    ' . ($status !== null && $status !== '' ? ' AND pn.status = '.$status : ' AND pn.status in (0,1) ') . '
+                    ' . ($status !== null && $status !== '' ? ' AND pn.status = '.$status : '') . '
                     ' . ($id_user ? ' AND pn.id_user = '.$id_user : '') . '
                     ' . ($non_anggota == 1 ? ' AND (pn.id_perkumpulan IS NULL OR pn.id_perkumpulan = "")' : '') . '
                     ' . (!empty($keyword) ? ' AND (u.nama LIKE "%'.$keyword.'%" OR u.email LIKE "%'.$keyword.'%")' : '') . '

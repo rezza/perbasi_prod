@@ -52,7 +52,7 @@ class News extends Model
 
     function getNewsByEncId($encryptedid){
         $data = DB::select(
-            'SELECT 
+            'SELECT
                 n.id,
                 n.judul,
                 n.kategori,
@@ -62,6 +62,7 @@ class News extends Model
                 n.status,
                 n.created_at,
                 n.id_admin,
+                n.is_banner,
                 a.username as admin_username
             FROM m_news n
             LEFT JOIN m_admin a ON n.id_admin = a.id
@@ -139,7 +140,8 @@ class News extends Model
 
     function getNewsDetails($id){
         $data = DB::select(
-                'SELECT 
+                'SELECT
+                    n.id,
                     md5(concat(n.id, "'.$this->imbuhan.'")) AS id_news,
                     n.judul,
                     n.filename,
@@ -147,6 +149,7 @@ class News extends Model
                     n.tanggal,
                     n.konten,
                     n.status,
+                    n.is_banner,
                     n.created_at,
                     md5(concat(a.id, "4DM1N")) AS id_admin,
                     a.username as admin_username

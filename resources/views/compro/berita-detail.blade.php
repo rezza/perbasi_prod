@@ -29,10 +29,17 @@
 <section class="max-w-7xl mx-auto px-4 py-12 grid lg:grid-cols-3 gap-8">
     <article class="lg:col-span-2 bg-white rounded-2xl shadow p-6 lg:p-10">
         @if(!empty($article->filename))
-            <img src="{{ asset('news/'.$article->filename) }}" alt="{{ $article->judul }}" class="w-full rounded-xl mb-6">
+            <div class="relative rounded-xl overflow-hidden mb-6">
+                <img src="{{ asset('news/'.$article->filename) }}" alt="{{ $article->judul }}" class="w-full">
+                @include('compro.partials.event-info-bar', ['info' => $pertandingan, 'size' => 'lg'])
+            </div>
         @endif
         <div class="prose max-w-none text-gray-700 leading-relaxed">
             {!! $article->konten !!}
+        </div>
+
+        <div class="mt-8">
+            @include('compro.partials.event-schedule', ['schedules' => $schedules])
         </div>
 
         {{-- Share --}}

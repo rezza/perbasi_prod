@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'jwt.verify' => \App\Http\Middleware\JwtMiddleware::class,
+            'compro.auth' => \App\Http\Middleware\EnsureComproAuthenticated::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

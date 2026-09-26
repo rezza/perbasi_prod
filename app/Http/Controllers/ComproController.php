@@ -14,6 +14,9 @@ use App\Perkumpulan;
 use App\PengajuanPemain;
 use App\PengajuanNonAnggota;
 use App\User;
+use App\Pertandingan;
+use App\Helpers\JWTHelper;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * ComproController
@@ -31,6 +34,8 @@ class ComproController extends Controller
     protected $perkumpulan;
     protected $pengajuanPemain;
     protected $pengajuanNonAnggota;
+    protected $user;
+    protected $pertandingan;
 
     public function __construct()
     {
@@ -43,15 +48,18 @@ class ComproController extends Controller
         $this->perkumpulan         = new Perkumpulan();
         $this->pengajuanPemain     = new PengajuanPemain();
         $this->pengajuanNonAnggota = new PengajuanNonAnggota();
+        $this->user                = new User();
+        $this->pertandingan        = new Pertandingan();
     }
 
     /* ==================== DASHBOARD ==================== */
     public function dashboard()
     {
-        $banners        = $this->news->getActiveBanner();
+        // Covers show a date/time/check-in/location strip when the post is linked to a check-in session.
+        $banners        = $this->pertandingan->attachSummaryToNewsRows($this->news->getActiveBanner());
         $programs       = $this->bannerProgram->getBannerProgramList();
-        $latestNews     = array_slice($this->news->getActiveNews(1), 0, 3);
-        $upcomingAgenda = array_slice($this->news->getActiveNews(2), 0, 3);
+        $latestNews     = $this->pertandingan->attachSummaryToNewsRows(array_slice($this->news->getActiveNews(1), 0, 3));
+        $upcomingAgenda = $this->pertandingan->attachSummaryToNewsRows(array_slice($this->news->getActiveNews(2), 0, 3));
         $sponsors       = array_slice($this->sponsor->getSponsorList(), 0, 6);
 
         $countPerkumpulanByKategori = fn(string $nama) => DB::table('m_perkumpulan AS pk')
@@ -248,7 +256,7 @@ class ComproController extends Controller
     {
         $keyword         = $request->get('q');
         // kategori 2 = jadwal pertandingan (sesuai konvensi APINewsController)
-        $events          = $this->news->getNews($keyword, 2, 1);
+        $events          = $this->pertandingan->attachSummaryToNewsRows($this->news->getNews($keyword, 2, 1));
         $allAgenda       = $this->news->getActiveNews(2);
         $eventDates      = collect($allAgenda)
             ->map(fn($e) => \Carbon\Carbon::parse($e->tanggal)->format('Y-m-d'))
@@ -260,7 +268,7 @@ class ComproController extends Controller
         return view('compro.agenda', compact('events', 'eventDates', 'popularArticles'));
     }
 
-    public function agendaDetail($id)
+    public function agendaDetail(Request $request, $id)
     {
         $event = $this->news->getNewsDetails($id);
         if (!$event) {
@@ -269,7 +277,9 @@ class ComproController extends Controller
 
         $related = array_slice($this->news->getActiveNews(2), 0, 4);
 
-        return view('compro.agenda-detail', compact('event', 'related'));
+        [$schedules, $pertandingan] = $this->scheduleInfo($request, $event);
+
+        return view('compro.agenda-detail', compact('event', 'related', 'schedules', 'pertandingan'));
     }
 
     /* ==================== SPONSOR ==================== */
@@ -305,7 +315,7 @@ class ComproController extends Controller
     {
         $keyword  = $request->get('q');
         $kategori = $request->get('kategori', 1); // default berita
-        $news     = $this->news->getNews($keyword, $kategori, 1);
+        $news     = $this->pertandingan->attachSummaryToNewsRows($this->news->getNews($keyword, $kategori, 1));
         $popular  = array_slice($this->news->getActiveNews(1), 0, 4);
         $featured = !empty($news) ? $news[0] : null;
         $rest     = !empty($news) ? array_slice($news, 1) : [];
@@ -313,7 +323,7 @@ class ComproController extends Controller
         return view('compro.berita', compact('news', 'featured', 'rest', 'popular', 'keyword'));
     }
 
-    public function beritaDetail($id)
+    public function beritaDetail(Request $request, $id)
     {
         $article = $this->news->getNewsDetails($id);
         if (!$article) {
@@ -322,6 +332,304 @@ class ComproController extends Controller
 
         $related = array_slice($this->news->getActiveNews($article->kategori), 0, 4);
 
-        return view('compro.berita-detail', compact('article', 'related'));
+        [$schedules, $pertandingan] = $this->scheduleInfo($request, $article);
+
+        return view('compro.berita-detail', compact('article', 'related', 'schedules', 'pertandingan'));
+    }
+
+    /**
+     * A news/banner can carry MANY events. Returns [$schedules, $pertandingan]:
+     *  - $schedules: every aktif/selesai event of the news (oldest first) with
+     *    the visitor's own registration + check-in state; for events the
+     *    visitor may check in to right now, also `role` + `prefill` so the
+     *    form can render pemain fields (one detail-for-member call each, only
+     *    for those events).
+     *  - $pertandingan: session summary of the primary event, ids encoded —
+     *    only feeds the info strip on the cover image.
+     */
+    private function scheduleInfo(Request $request, $newsRow): array
+    {
+        $userId = session('jwt_token')
+            ? (JWTHelper::validateToken(session('jwt_token'))['data']['user_id'] ?? null)
+            : null;
+
+        $eventModel = new \App\EventPendaftaran();
+        $schedules = $eventModel->getMemberSchedulesByNewsId($newsRow->id, $userId ?? 0);
+
+        foreach ($schedules as &$s) {
+            $s['role'] = null;
+            $s['prefill'] = null;
+            $approved = (int) ($s['my_registration']['status'] ?? -99) === 1;
+            if ($userId && $approved && $s['checkin_enabled'] && !$s['my_checkin']) {
+                $request->merge(['id_event_pendaftaran' => $s['id']]);
+                $result = json_decode(
+                    app(APIPertandinganController::class)->detailForMember($this->withAuthHeader($request)),
+                    true
+                );
+                if (($result['status'] ?? null) === '00') {
+                    $s['role'] = $result['data']['role'] ?? null;
+                    $s['prefill'] = $result['data']['prefill'] ?? null;
+                }
+            }
+        }
+        unset($s);
+
+        $primaryRawId = $eventModel->getActiveEventIdByNewsId($newsRow->id);
+        $pertandingan = $primaryRawId ? $this->pertandingan->getByEventId($primaryRawId) : null;
+        if ($pertandingan) {
+            $this->pertandingan->encodeForClient($pertandingan);
+        }
+
+        return [$schedules, $pertandingan];
+    }
+
+    /* ==================== AUTH (session-based; bridges to the JWT API) ====================
+     * Compro visitors identify themselves via the same email+password login as the
+     * mobile app. The JWT returned by APIUserController::submitLogin is stored
+     * server-side in the Laravel session (never exposed to the browser as JS-readable
+     * storage) instead of being sent as a bearer header on every request.
+     */
+
+    public function loginForm()
+    {
+        if (session('jwt_token') && (JWTHelper::validateToken(session('jwt_token'))['valid'] ?? false)) {
+            return redirect()->to(session('compro_intended_url', route('compro.dashboard')));
+        }
+
+        return view('compro.login');
+    }
+
+    public function loginSubmit(Request $request)
+    {
+        $request->validate([
+            'username' => 'required|string',
+            'password' => 'required|string',
+        ]);
+
+        $result = json_decode(app(APIUserController::class)->submitLogin($request), true);
+
+        if (($result['status'] ?? null) !== '00') {
+            return back()->withInput($request->only('username'))->with('error', $result['message'] ?? 'Masuk gagal');
+        }
+
+        session(['jwt_token' => $result['token']]);
+        $intended = session()->pull('compro_intended_url', route('compro.dashboard'));
+
+        return redirect()->to($intended)->with('success', 'Berhasil masuk.');
+    }
+
+    public function registerForm()
+    {
+        return view('compro.register');
+    }
+
+    public function registerSubmit(Request $request)
+    {
+        $request->validate([
+            'nama' => 'required|string|max:255',
+            'email' => 'required|email',
+            'password' => 'required|string|min:6',
+            'id_kota' => 'required|string',
+        ]);
+
+        $result = json_decode(app(APIUserController::class)->registerUser($request), true);
+
+        if (($result['status'] ?? null) !== '00') {
+            return back()->withInput($request->except('password'))->with('error', $result['message'] ?? 'Registrasi gagal');
+        }
+
+        // Auto-login so the visitor lands straight on the event form they came from.
+        $loginRequest = Request::create('', 'POST', [
+            'username' => $request->email,
+            'password' => $request->password,
+        ]);
+        $loginResult = json_decode(app(APIUserController::class)->submitLogin($loginRequest), true);
+        if (($loginResult['status'] ?? null) === '00') {
+            session(['jwt_token' => $loginResult['token']]);
+        }
+
+        $intended = session()->pull('compro_intended_url', route('compro.dashboard'));
+
+        return redirect()->to($intended)->with('success', 'Akun berhasil dibuat.');
+    }
+
+    public function logout()
+    {
+        session()->forget(['jwt_token', 'compro_intended_url']);
+
+        return redirect()->route('compro.dashboard')->with('success', 'Berhasil keluar.');
+    }
+
+    /**
+     * SSO handoff to the separate member web app (member.perbasipemalang.org):
+     * mint a single-use, short-lived code for the logged-in compro visitor
+     * and hand it off via URL so they land there already signed in, instead
+     * of having to log in a second time. The member app exchanges the code
+     * for a JWT via POST /api/sso/exchange (APIUserController::ssoExchange).
+     */
+    public function ssoMemberRedirect()
+    {
+        $token = session('jwt_token');
+        $validation = $token ? JWTHelper::validateToken($token) : ['valid' => false];
+        if (!($validation['valid'] ?? false)) {
+            session(['compro_intended_url' => route('compro.sso.member')]);
+            return redirect()->route('compro.login');
+        }
+
+        $code = bin2hex(random_bytes(32));
+        Cache::put('sso_member_' . $code, $validation['data']['user_id'], now()->addSeconds(60));
+
+        return redirect()->away('https://member.perbasipemalang.org/login?sso=' . $code);
+    }
+
+    /* ==================== EVENT REGISTRATION (bridges to the JWT API) ====================
+     * These delegate straight into APIEventPendaftaranController's existing,
+     * already-battle-tested methods (used by the mobile member app) -- no business
+     * logic is duplicated here. The only bridging step is attaching the session's
+     * JWT as the Authorization header the API methods already expect.
+     */
+
+    private function withAuthHeader(Request $request): Request
+    {
+        $request->headers->set('Authorization', 'Bearer ' . session('jwt_token'));
+        return $request;
+    }
+
+    private function eventDetail(Request $request, $id): array
+    {
+        $request->merge(['id' => $id]);
+        $result = json_decode(app(APIEventPendaftaranController::class)->detailEventForMember($this->withAuthHeader($request)), true);
+
+        if (($result['status'] ?? null) !== '00') {
+            abort(404, $result['message'] ?? 'Event tidak ditemukan');
+        }
+
+        return $result['data'];
+    }
+
+    /**
+     * Values of requirements whose source is the member profile (sumber = profil) and
+     * that the profile already has. These are shown read-only on the form and injected
+     * server-side on submit, since disabled inputs are not posted by the browser.
+     * A requirement the profile has no value for stays editable.
+     */
+    private function profileLockedValues(array $definitions): array
+    {
+        $userId = JWTHelper::validateToken(session('jwt_token'))['data']['user_id'] ?? null;
+        $profile = $userId ? $this->user->getLoginData($userId) : null;
+        if (!$profile) {
+            return [];
+        }
+
+        $locked = [];
+        foreach ($definitions as $def) {
+            if (($def['sumber'] ?? null) !== 'profil' || empty($def['profil_field_map'])) {
+                continue;
+            }
+            $value = $profile->{$def['profil_field_map']} ?? null;
+            if ($value !== null && $value !== '') {
+                $locked[$def['key']] = (string) $value;
+            }
+        }
+
+        return $locked;
+    }
+
+    public function eventForm(Request $request, $id)
+    {
+        $data = $this->eventDetail($request, $id);
+
+        return view('compro.event-form', [
+            'eventId' => $id,
+            'event' => $data['event'],
+            'myPerkumpulan' => $data['my_perkumpulan'],
+            'registration' => $data['registration'],
+            'lockedValues' => $this->profileLockedValues($data['event']['persyaratan_definitions']),
+        ]);
+    }
+
+    public function eventUploadFile(Request $request)
+    {
+        $result = json_decode(app(APIEventPendaftaranController::class)->uploadFilePeserta($this->withAuthHeader($request)), true);
+
+        return response()->json($result);
+    }
+
+    public function eventSubmit(Request $request, $id)
+    {
+        $data = $this->eventDetail($request, $id);
+        $request->merge([
+            'id_event' => $id,
+            'data_persyaratan' => array_merge(
+                (array) $request->input('data_persyaratan', []),
+                $this->profileLockedValues($data['event']['persyaratan_definitions'])
+            ),
+        ]);
+        $result = json_decode(app(APIEventPendaftaranController::class)->daftarPeserta($this->withAuthHeader($request)), true);
+
+        if (($result['status'] ?? null) !== '00') {
+            $message = $result['message'] ?? 'Pendaftaran gagal';
+            if (!empty($result['data']['missing_fields'])) {
+                $message .= ': ' . implode(', ', $result['data']['missing_fields']);
+            }
+            return back()->withInput()->with('error', $message);
+        }
+
+        return redirect()->route('compro.event.form', $id)->with('success', $result['message']);
+    }
+
+    /* ==================== PERTANDINGAN CHECK-IN ==================== */
+
+    public function pertandinganCheckinSubmit(Request $request, $id)
+    {
+        $request->merge(['id_news' => $id]);
+        $result = json_decode(
+            app(APIPertandinganController::class)->submitCheckin($this->withAuthHeader($request)),
+            true
+        );
+
+        if (($result['status'] ?? null) !== '00') {
+            return back()->withInput()->with('error', $result['message'] ?? 'Check-in gagal');
+        }
+
+        return redirect()->route('compro.agenda.detail', $id)->with('success', $result['message']);
+    }
+
+    public function pertandinganAttendanceList(Request $request, $id)
+    {
+        $request->merge(['id_news' => $id]);
+        $result = json_decode(
+            app(APIPertandinganController::class)->getAttendanceList($this->withAuthHeader($request)),
+            true
+        );
+
+        return response()->json($result);
+    }
+
+    /** Check-in to ONE event of a multi-schedule banner/berita ({id} = encoded event id). */
+    public function eventCheckinSubmit(Request $request, $id)
+    {
+        $request->merge(['id_event_pendaftaran' => $id]);
+        $result = json_decode(
+            app(APIPertandinganController::class)->submitCheckin($this->withAuthHeader($request)),
+            true
+        );
+
+        if (($result['status'] ?? null) !== '00') {
+            return back()->withInput()->with('error', $result['message'] ?? 'Check-in gagal');
+        }
+
+        return back()->with('success', $result['message']);
+    }
+
+    public function eventAttendanceList(Request $request, $id)
+    {
+        $request->merge(['id_event_pendaftaran' => $id]);
+        $result = json_decode(
+            app(APIPertandinganController::class)->getAttendanceList($this->withAuthHeader($request)),
+            true
+        );
+
+        return response()->json($result);
     }
 }

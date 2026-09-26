@@ -187,11 +187,16 @@ class APIDashboardController extends Controller
             // Get active banners
             $banners = $this->news->getActiveBanner();
 
-            // Get jadwal pertandingan (news kategori = 2)
-            $jadwal_pertandingan = $this->news->getActiveNews(2);
+            // Get jadwal pertandingan (news kategori = 2), enriched with session
+            // info (judul/jam/lokasi) for posts that have check-in configured.
+            // Banners and news carry the same summary so their covers can show
+            // date/time/check-in/location when linked to a session.
+            $pertandingan = new \App\Pertandingan();
+            $jadwal_pertandingan = $pertandingan->attachSummaryToNewsRows($this->news->getActiveNews(2));
+            $banners = $pertandingan->attachSummaryToNewsRows($banners);
 
             // Get news (news kategori = 1)
-            $news = $this->news->getActiveNews(1);
+            $news = $pertandingan->attachSummaryToNewsRows($this->news->getActiveNews(1));
 
             $data = [
                 'banners' => $banners,
@@ -237,7 +242,9 @@ class APIDashboardController extends Controller
         }
 
         try {
-            $news = $this->news->getActiveNews($kategori);
+            $news = (new \App\Pertandingan())->attachSummaryToNewsRows(
+                $this->news->getActiveNews($kategori)
+            );
 
             return ResponseController::sendSuccess([
                 'message' => 'Data news berhasil diambil',
@@ -271,6 +278,28 @@ class APIDashboardController extends Controller
             if (!$news) {
                 return ResponseController::sendError(97);
             }
+
+            $eventModel = new \App\EventPendaftaran();
+            $pertandinganModel = new \App\Pertandingan();
+
+            // A news/banner can carry MANY events. `events` is the full
+            // schedule with the caller's own registration + check-in state
+            // (3 batch queries however many events there are). Daftar hadir
+            // and role/prefill are NOT here: the app loads them per event
+            // (pertandingan/attendance-list, pertandingan/detail-for-member)
+            // only when the user opens/taps that event.
+            $news->events = $eventModel->getMemberSchedulesByNewsId($news->id, $validation['user']['user_id']);
+            $news->server_time = date('Y-m-d H:i:s');
+
+            // Legacy single-event fields (pre multi-schedule app builds) now
+            // describe the news's PRIMARY active event (upcoming first).
+            $primaryRawId = $eventModel->getActiveEventIdByNewsId($news->id);
+            $news->id_event = $primaryRawId === null ? null : md5($primaryRawId . $eventModel->imbuhan);
+
+            $pertandinganRow = $primaryRawId === null ? null : $pertandinganModel->getByEventId($primaryRawId);
+            $news->id_pertandingan = $pertandinganRow ? md5($pertandinganRow->id . $pertandinganModel->imbuhan) : null;
+            $news->checkin_enabled = $pertandinganRow ? (bool) $pertandinganRow->checkin_enabled : false;
+            $news->pertandingan = $pertandinganRow ? $pertandinganModel->summaryPayload($pertandinganRow) : null;
 
             return ResponseController::sendSuccess([
                 'message' => 'Detail news berhasil diambil',

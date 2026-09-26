@@ -8,7 +8,7 @@
     try { $d = \Carbon\Carbon::parse($event->tanggal); } catch (\Throwable $ex) { $d = null; }
 @endphp
 
-<section class="bg-navy-900 pt-16"> 
+<section class="bg-navy-900 pt-16">
         <div class="bg-navy-900 text-white py-12">
             <div class="max-w-7xl mx-auto px-4">
                 <a href="{{ route('compro.agenda') }}" class="text-sm text-gray-300 hover:text-white"><i class="fas fa-arrow-left mr-1"></i> Kembali ke Agenda</a>
@@ -27,11 +27,15 @@
 <section class="max-w-7xl mx-auto px-4 py-12 grid lg:grid-cols-3 gap-8">
     <article class="lg:col-span-2 bg-white rounded-2xl shadow p-6 lg:p-10">
         @if(!empty($event->filename))
-            <img src="{{ asset('news/'.$event->filename) }}" alt="{{ $event->judul }}" class="w-full rounded-xl mb-6">
+            <div class="relative rounded-xl overflow-hidden mb-6">
+                <img src="{{ asset('news/'.$event->filename) }}" alt="{{ $event->judul }}" class="w-full">
+                @include('compro.partials.event-info-bar', ['info' => $pertandingan, 'size' => 'lg'])
+            </div>
         @endif
         <div class="prose max-w-none text-gray-700 leading-relaxed">
             {!! $event->konten !!}
         </div>
+        @include('compro.partials.event-schedule', ['schedules' => $schedules])
     </article>
 
     <aside>

@@ -6,6 +6,7 @@ use Validator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use DateTime;
 use App\User;
 use App\Pendidikan;
@@ -29,6 +30,11 @@ class APIUserController extends Controller{
         $email      = $request->email;
         $password   = $request->password;
         $id_kotaenc = $request->id_kota;
+
+        $email = trim((string) $email);
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return ResponseController::sendError(63); // Format email tidak valid
+        }
 
         // Check if user already exists
         $res = User::where('email', $email)->first();
@@ -73,7 +79,9 @@ class APIUserController extends Controller{
         $password = $request->password;
 
         // Find user by email
-        $user = User::where('email', $username)->first();
+        $user = User::where('email', $username)
+            ->where('status', '<>', '-1')
+            ->first();
         if(!$user){
             return ResponseController::sendError(11);  
         }
@@ -97,7 +105,40 @@ class APIUserController extends Controller{
             ]);
         }
 
-        return ResponseController::sendError(11);  
+        return ResponseController::sendError(11);
+    }
+
+    /**
+     * Exchange a one-time SSO code (issued by ComproController::ssoMemberRedirect
+     * when a logged-in compro visitor clicks "Dashboard") for a fresh JWT --
+     * lets the separate member web app sign the visitor in without asking
+     * them to re-enter credentials. The code is single-use (Cache::pull
+     * deletes it on read) and short-lived.
+     */
+    public function ssoExchange(Request $request)
+    {
+        $code = $request->code;
+        if (empty($code)) {
+            return ResponseController::sendError(98);
+        }
+
+        $userId = Cache::pull('sso_member_' . $code);
+        if (!$userId) {
+            return ResponseController::sendError(11);
+        }
+
+        $user = User::where('id', $userId)->where('status', '<>', '-1')->first();
+        if (!$user || $user->status != 1) {
+            return ResponseController::sendError(11);
+        }
+
+        $token = GlobalHelperController::generateToken($user->id, $user->email, $user->nama);
+
+        return ResponseController::sendSuccess([
+            'message' => 'login berhasil',
+            'token' => $token,
+            'data' => $this->user->getLoginData($user->id),
+        ]);
     }
 
 
@@ -107,7 +148,7 @@ class APIUserController extends Controller{
         $password = $request->password;
 
         // Find user by email
-        $user = User::where('email', $username)->first();
+        $user = User::where('email', $username)->where('status', '!=', '-1')->first();
         if(!$user){
             return ResponseController::sendError(11);  
         }
@@ -309,6 +350,44 @@ class APIUserController extends Controller{
         }
     }
 
+    // List of perkumpulan the logged-in user is an approved (status = 2)
+    // member of, via m_pengajuan_pemain / m_pengajuan_nonaggota. Used by the
+    // event registration flow so a member can pick which perkumpulan they
+    // are registering under.
+    public function myPerkumpulan(Request $request){
+        // Validate JWT Token
+        $validation = GlobalHelperController::validateJWT($request);
+        if (!$validation['valid']) {
+            return GlobalHelperController::sendUnauthorized($validation['message']);
+        }
+
+        $currentUser = $validation['user'];
+
+        try {
+            $data = DB::select(
+                'SELECT DISTINCT
+                    md5(concat(p.id, "P3RKUMP")) AS id,
+                    p.no_perkumpulan,
+                    p.nama
+                FROM m_perkumpulan p
+                WHERE p.id IN (
+                    SELECT id_perkumpulan FROM m_pengajuan_pemain WHERE id_user = ? AND status = 2 AND id_perkumpulan IS NOT NULL
+                    UNION
+                    SELECT id_perkumpulan FROM m_pengajuan_nonaggota WHERE id_user = ? AND status = 2 AND id_perkumpulan IS NOT NULL
+                )
+                ORDER BY p.nama ASC
+                ', [$currentUser["user_id"], $currentUser["user_id"]]
+            );
+
+            return ResponseController::sendSuccess([
+                'message' => 'Daftar perkumpulan berhasil diambil',
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            return ResponseController::sendErrorData(99, ['error' => $e->getMessage()]);
+        }
+    }
+
     // Update Profile
     public function updateProfile(Request $request){
         // Validate JWT Token
@@ -349,6 +428,11 @@ class APIUserController extends Controller{
 
             // Validate email uniqueness if email is being changed
             if (!empty($email) && $email !== $user->email) {
+                $email = trim((string) $email);
+                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    DB::rollback();
+                    return ResponseController::sendError(63); // Format email tidak valid
+                }
                 $existingUser = User::where('email', $email)->where('id', '!=', $currentUser["user_id"])->first();
                 if ($existingUser) {
                     return ResponseController::sendError(56); // Email sudah digunakan user lain
@@ -964,19 +1048,21 @@ class APIUserController extends Controller{
             return GlobalHelperController::sendUnauthorized($validation['message']);
         }
 
+        $request->validate([
+            'uploaded_file' => 'required|file|mimes:jpg,jpeg,png,pdf|max:2048',
+        ]);
+
         $filename = 'noname';
 
         if($request->filename){
             $filename = $request->filename;
         }
- 
-        if($request->hasfile('uploaded_file')){
-            $file = $request->file('uploaded_file');
-            $file->move('profil', $filename); 
-        }
-        
+
+        $file = $request->file('uploaded_file');
+        $file->move('profil', $filename);
+
         return ResponseController::sendSuccess([
-            'message' => 'success', 
+            'message' => 'success',
         ]); 
     }
 
