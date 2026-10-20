@@ -241,7 +241,7 @@ class APIPosisiController extends Controller
 
             // Check if has active users
             $hasUsers = DB::select(
-                'SELECT COUNT(*) as total FROM m_user WHERE posisi = ? AND status = 1',
+                'SELECT COUNT(*) as total FROM m_user WHERE posisi = ? AND status = 1 AND tipe_akun <> "ortu"',
                 [$posisi->id]
             );
 

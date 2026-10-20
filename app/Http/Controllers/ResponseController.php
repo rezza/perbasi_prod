@@ -161,6 +161,14 @@ class ResponseController {
                 return 'Parameter tidak lengkap';
             case 99:
                 return 'Terjadi kesalahan sistem';
+            case 100:
+                return 'Perbarui aplikasi untuk memakai mode orang tua';
+            case 101:
+                return 'Akun anak tidak ditemukan atau bukan anak Anda';
+            case 102:
+                return 'Email dan password harus diisi bersamaan';
+            case 103:
+                return 'Fitur ini hanya untuk akun orang tua';
 
             default:
                 return 'Error Unknown';

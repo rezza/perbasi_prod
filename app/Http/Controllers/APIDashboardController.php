@@ -47,7 +47,7 @@ class APIDashboardController extends Controller
     {
         try {
             $jumlah_klub    = Perkumpulan::where('status', 1)->count();
-            $jumlah_anggota = User::where('status', 1)->count();
+            $jumlah_anggota = User::where('status', 1)->where('tipe_akun', '<>', 'ortu')->count();
             $jumlah_event   = NewsModel::where('kategori', 2)->where('status', 1)->count();
 
             return ResponseController::sendSuccess([
@@ -87,7 +87,7 @@ class APIDashboardController extends Controller
             $fcmtoken = $request->fcmtoken;
             $os_type = $request->osType;
             $os_version = $request->osVersion;
-            $userUpdate = User::find($currentUser["user_id"]);
+            $userUpdate = User::find($currentUser["real_user_id"] ?? $currentUser["user_id"]);
             if($fcmtoken != "" && $fcmtoken != "-"){
                 $userUpdate->fcm_token = $fcmtoken;
             }
@@ -207,7 +207,10 @@ class APIDashboardController extends Controller
             $fcmtoken = $request->fcmtoken;
             $os_type = $request->osType;
             $os_version = $request->osVersion;
-            $userUpdate = User::find($user->id);
+            // Parents mode: perangkat milik orang tua, jadi token disimpan ke akun orang tua
+            // (bukan akun anak yang sedang dikelola).
+            $deviceOwnerId = $validation['user']['real_user_id'] ?? $user->id;
+            $userUpdate = User::find($deviceOwnerId);
             if($fcmtoken != "" && $fcmtoken != "-"){
                 $userUpdate->fcm_token = $fcmtoken;
             }

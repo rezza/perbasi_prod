@@ -13,12 +13,13 @@ class User extends Model
     protected $fillable = [
     	'id', 'email', 'password', 'nama', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'no_hp',
         'no_darurat', 'hubungan_nodarurat', 'pekerjaan', 'nik', 'no_pelajar', 'no_kk', 'filename_ktp', 'filename_ttd', 
-        'filename_foto', 'posisi', 'status', 'fcm_token', 'os_type', 'os_version', 'no_anggota', 'otp_code', 'tgl_expired'
+        'filename_foto', 'posisi', 'status', 'fcm_token', 'os_type', 'os_version', 'no_anggota', 'otp_code', 'tgl_expired',
+        'id_parents', 'tipe_akun'
     ];
     public $imbuhan = 'U53R';
 
     function getUsers($keyword, $posisi = null){
-        $filter = 'p.status = 1';
+        $filter = "p.status = 1 AND p.tipe_akun <> 'ortu'";
         $param = [];
 
         if(!empty($keyword)){
@@ -59,6 +60,43 @@ class User extends Model
             ',$param);
     }
 
+    /**
+     * FCM tokens that should receive a notification for $user: the user's own
+     * token plus the parent's token when the user is a managed child.
+     * $user is a row/model with id, id_parents and fcm_token.
+     */
+    public static function notifTokens($user){
+        $tokens = [];
+        if (!empty($user->fcm_token)) $tokens[] = $user->fcm_token;
+        if (!empty($user->id_parents)) {
+            $parentToken = DB::table('m_user')->where('id', $user->id_parents)->where('status', 1)->value('fcm_token');
+            if (!empty($parentToken)) $tokens[] = $parentToken;
+        }
+        return array_values(array_unique($tokens));
+    }
+
+    /** Prefix the child's name on notifications that also go to the parent. */
+    public static function notifTitle($user, $title){
+        return !empty($user->id_parents) ? '['.$user->nama.'] '.$title : $title;
+    }
+
+    /**
+     * Parents-mode info for admin screens: whether the account is a child managed
+     * by a parent (has a parent and no credentials of its own) and who the parent is.
+     */
+    public static function parentInfo($userId){
+        $row = DB::table('m_user as c')
+            ->leftJoin('m_user as p', 'p.id', '=', 'c.id_parents')
+            ->where('c.id', $userId)
+            ->first(['c.id_parents', 'c.email', 'c.password', 'p.nama as nama_ortu', 'p.email as email_ortu']);
+        $managed = $row && !empty($row->id_parents) && empty($row->email) && empty($row->password);
+        return [
+            'dikelola_ortu' => $managed ? 1 : 0,
+            'nama_ortu' => $managed ? $row->nama_ortu : null,
+            'email_ortu' => $managed ? $row->email_ortu : null,
+        ];
+    }
+
     function getUserWithAdminInfo($email){
         return  DB::select(
                 'SELECT 
@@ -78,7 +116,7 @@ class User extends Model
                 FROM m_user u
                 LEFT JOIN m_admin a ON u.id = a.id_user AND a.status = 1
                 LEFT JOIN m_perkumpulan p ON a.id_perkumpulan = p.id
-                WHERE u.email LIKE ? AND u.status = 1
+                WHERE u.email LIKE ? AND u.status = 1 AND u.tipe_akun <> "ortu"
                 ORDER BY u.nama ASC
                 ',['%'.$email.'%']
             );
@@ -139,7 +177,9 @@ class User extends Model
                 a.posisi,
                 a.status,
                 a.no_anggota,
-                a.tgl_expired
+                a.tgl_expired,
+                a.tipe_akun,
+                (a.id_parents IS NOT NULL AND a.email IS NULL AND a.password IS NULL) AS dikelola_ortu
             FROM m_user a
             WHERE a.id = ?
             LIMIT 1',

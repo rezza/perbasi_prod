@@ -1030,12 +1030,13 @@ class APIEventPendaftaranController extends Controller
             ]);
 
             $user = User::find($row->id_user);
-            if ($user && !empty($user->fcm_token)) {
-                $title = $newStatus === 1 ? 'Pendaftaran Event Diterima' : 'Pendaftaran Event Ditolak';
+            $tokens = $user ? User::notifTokens($user) : [];
+            if (!empty($tokens)) {
+                $title = User::notifTitle($user, $newStatus === 1 ? 'Pendaftaran Event Diterima' : 'Pendaftaran Event Ditolak');
                 $body = $newStatus === 1
                     ? 'Pendaftaran anda pada event "'.$row->nama_event.'" telah diterima.'
                     : 'Pendaftaran anda pada event "'.$row->nama_event.'" ditolak. '.($request->catatan ?: '');
-                GlobalHelperController::sendNotif([$user->fcm_token], $title, $body);
+                GlobalHelperController::sendNotif($tokens, $title, $body);
             }
 
             return ResponseController::sendSuccess([
@@ -1332,11 +1333,11 @@ class APIEventPendaftaranController extends Controller
         $emails = array_values(array_unique(array_filter(array_column($items, 'email'))));
         $nos = array_values(array_unique(array_filter(array_column($items, 'no_anggota'))));
         $encIds = array_values(array_unique(array_filter(array_column($items, 'id_user_enc'))));
-        $userCols = ['id', 'nama', 'email', 'no_anggota', 'no_hp', 'fcm_token'];
+        $userCols = ['id', 'nama', 'email', 'no_anggota', 'no_hp', 'fcm_token', 'id_parents'];
 
         $byEmail = [];
         if (!empty($emails)) {
-            foreach (DB::table('m_user')->where('status', 1)->whereIn('email', $emails)->get($userCols) as $u) {
+            foreach (DB::table('m_user')->where('status', 1)->where('tipe_akun', '<>', 'ortu')->whereIn('email', $emails)->get($userCols) as $u) {
                 $byEmail[strtolower(trim($u->email))] = $u;
             }
         }
@@ -1349,7 +1350,7 @@ class APIEventPendaftaranController extends Controller
         }
         $byNo = []; // no_anggota => [users] (a list, so a duplicated number is detected, not guessed)
         if (!empty($nos)) {
-            foreach (DB::table('m_user')->where('status', 1)->whereIn('no_anggota', $nos)->get($userCols) as $u) {
+            foreach (DB::table('m_user')->where('status', 1)->where('tipe_akun', '<>', 'ortu')->whereIn('no_anggota', $nos)->get($userCols) as $u) {
                 $byNo[trim($u->no_anggota)][] = $u;
             }
         }
@@ -1357,8 +1358,8 @@ class APIEventPendaftaranController extends Controller
         if (!empty($encIds)) {
             $in = implode(',', array_fill(0, count($encIds), '?'));
             $rows = DB::select(
-                'SELECT id, nama, email, no_anggota, no_hp, fcm_token, md5(concat(id, "'.$this->user->imbuhan.'")) AS id_enc
-                FROM m_user WHERE status = 1 AND md5(concat(id, "'.$this->user->imbuhan.'")) IN ('.$in.')',
+                'SELECT id, nama, email, no_anggota, no_hp, fcm_token, id_parents, md5(concat(id, "'.$this->user->imbuhan.'")) AS id_enc
+                FROM m_user WHERE status = 1 AND tipe_akun <> "ortu" AND md5(concat(id, "'.$this->user->imbuhan.'")) IN ('.$in.')',
                 $encIds
             );
             foreach ($rows as $u) $byEnc[$u->id_enc] = $u;
@@ -1784,7 +1785,11 @@ class APIEventPendaftaranController extends Controller
             DB::commit();
 
             if ($notify) {
-                $tokens = array_values(array_filter(array_map(function ($u) { return $u->fcm_token; }, $toNotify)));
+                $tokens = [];
+                foreach ($toNotify as $u) {
+                    $tokens = array_merge($tokens, User::notifTokens($u));
+                }
+                $tokens = array_values(array_unique($tokens));
                 foreach (array_chunk($tokens, 500) as $chunk) {
                     try {
                         GlobalHelperController::sendNotif($chunk, 'Terdaftar di Event',
@@ -1834,7 +1839,7 @@ class APIEventPendaftaranController extends Controller
             $users = DB::select(
                 'SELECT id, nama, email, no_anggota, no_hp
                 FROM m_user
-                WHERE status = 1 AND (nama LIKE ? OR email LIKE ? OR no_anggota LIKE ? OR no_hp LIKE ?)
+                WHERE status = 1 AND tipe_akun <> \'ortu\' AND (nama LIKE ? OR email LIKE ? OR no_anggota LIKE ? OR no_hp LIKE ?)
                 ORDER BY nama ASC
                 LIMIT 20', [$like, $like, $like, $like]
             );

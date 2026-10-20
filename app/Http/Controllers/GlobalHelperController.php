@@ -220,9 +220,61 @@ class GlobalHelperController extends Controller{
             ];
         }
 
+        // Parents mode: a parent acts as one of their children. Requests without
+        // the X-Acting-As header (all existing apps) keep the legacy behaviour.
+        $acting = $request->header('X-Acting-As');
+        if (!empty($acting)) {
+            return self::resolveActingUser($validation['data'], $acting);
+        }
+
         return [
             'valid' => true,
             'user' => $validation['data']
+        ];
+    }
+
+    /** HTTP code of the last failed validateJWT, used by sendUnauthorized. */
+    private static $lastInvalidCode = 401;
+
+    /**
+     * Parents mode. $acting is the encoded id (md5(id . imbuhan)) of a child.
+     * On success user['user_id'] becomes the child's raw id and the parent's
+     * raw id is kept in user['real_user_id'].
+     */
+    private static function resolveActingUser(array $jwtUser, $acting)
+    {
+        $deny = function () {
+            self::$lastInvalidCode = 403;
+            return [
+                'valid' => false,
+                'message' => ResponseController::getErrorMessage(101),
+                'code' => 403
+            ];
+        };
+
+        $imbuhan = (new \App\User())->imbuhan;
+        $child = DB::table('m_user')
+            ->whereRaw('md5(concat(id, ?)) = ?', [$imbuhan, $acting])
+            ->where('status', 1)
+            ->first(['id', 'id_parents', 'email', 'nama']);
+        if (!$child || empty($child->id_parents) || (int) $child->id_parents !== (int) $jwtUser['user_id']) {
+            return $deny();
+        }
+
+        $parent = DB::table('m_user')->where('id', $jwtUser['user_id'])->where('status', 1)->first(['tipe_akun']);
+        if (!$parent || $parent->tipe_akun !== 'ortu') {
+            return $deny();
+        }
+
+        $jwtUser['real_user_id'] = $jwtUser['user_id'];
+        $jwtUser['user_id'] = $child->id;
+        $jwtUser['email'] = $child->email;
+        $jwtUser['nama'] = $child->nama;
+        $jwtUser['acting_as'] = true;
+
+        return [
+            'valid' => true,
+            'user' => $jwtUser
         ];
     }
 
@@ -253,11 +305,13 @@ class GlobalHelperController extends Controller{
      */
     public static function sendUnauthorized($message = 'Unauthorized - Invalid or expired token')
     {
+        $code = self::$lastInvalidCode;
+        self::$lastInvalidCode = 401;
         return response()->json([
-            'status' => '401',
+            'status' => (string) $code,
             'message' => $message,
-            'code' => 401
-        ], 401);
+            'code' => $code
+        ], $code);
     }
 
     /**

@@ -42,16 +42,25 @@ class APIUserController extends Controller{
             return ResponseController::sendError(3);  
         }
 
-        $resKota = $this->kota->getKotaByEncId($id_kotaenc);
-        if(!$resKota){
-            return ResponseController::sendError(36);  
+        // Parents mode: akun orang tua tidak punya kota maupun no_anggota
+        $isOrtu = $request->tipe_akun === 'ortu';
+        if ($isOrtu && empty($password)) {
+            return ResponseController::sendError(98);
+        }
+
+        $resKota = null;
+        if (!$isOrtu) {
+            $resKota = $this->kota->getKotaByEncId($id_kotaenc);
+            if(!$resKota){
+                return ResponseController::sendError(36);  
+            }
         }
 
         try {
             // Generate no_anggota berdasarkan id_kota
             // Format: <full_code kota> <tahun> <nomor urut 4 digit>
             // Nomor urut restart dari 0001 setiap awal tahun
-            $no_anggota = $this->user->generateNoAnggota($resKota->id);
+            $no_anggota = $isOrtu ? null : $this->user->generateNoAnggota($resKota->id);
 
             $new_pass = Hash::make($password);
             $user = new User([
@@ -59,6 +68,7 @@ class APIUserController extends Controller{
                 'email' => $email,
                 'password' => $new_pass,
                 'no_anggota' => $no_anggota,
+                'tipe_akun' => $isOrtu ? 'ortu' : 'member',
                 'status' => 1,
             ]);
             $user->save();
@@ -90,7 +100,12 @@ class APIUserController extends Controller{
             return ResponseController::sendError(20);  
         }
 
-        if ($user && Hash::check($password, $user->password)) {
+        if ($user && !empty($user->password) && Hash::check($password, $user->password)) {
+            // Akun orang tua hanya bisa dipakai di app yang mendukung parents mode
+            if ($user->tipe_akun === 'ortu' && $request->client_caps !== 'parents') {
+                return ResponseController::sendError(100);
+            }
+
             // Generate JWT Token
             $token = GlobalHelperController::generateToken(
                 $user->id, 
@@ -157,7 +172,7 @@ class APIUserController extends Controller{
             return ResponseController::sendError(20);  
         }
 
-        if ($user && Hash::check($password, $user->password)) {
+        if ($user && !empty($user->password) && Hash::check($password, $user->password)) {
             // Generate JWT Token
             $token = GlobalHelperController::generateToken(
                 $user->id, 
@@ -440,6 +455,23 @@ class APIUserController extends Controller{
                 $user->email = $email;
             }
 
+            // Parents mode: akun anak yang belum punya kredensial diaktifkan dengan
+            // mengisi email + password sekaligus. Akun lain tidak terpengaruh.
+            if (!empty($user->id_parents) && empty($user->password)) {
+                $passwordBaru = $request->password;
+                if (!empty($passwordBaru) || !empty($email)) {
+                    if (empty($passwordBaru) || empty($user->email)) {
+                        DB::rollback();
+                        return ResponseController::sendError(102);
+                    }
+                    if (strlen($passwordBaru) < 6) {
+                        DB::rollback();
+                        return ResponseController::sendError(66);
+                    }
+                    $user->password = Hash::make($passwordBaru);
+                }
+            }
+
             // Validate phone uniqueness if phone is being changed
             if (!empty($no_hp) && $no_hp !== $user->no_hp) {
                 $existingUser = User::where('no_hp', $no_hp)->where('id', '!=', $currentUser["user_id"])->first();
@@ -602,7 +634,7 @@ class APIUserController extends Controller{
                     u.os_type,
                     u.os_version
                 FROM m_user u
-                WHERE u.no_anggota = ? AND u.status = 1
+                WHERE u.no_anggota = ? AND u.status = 1 AND u.tipe_akun <> "ortu"
                 LIMIT 1',
                 [$no_anggota]
             );
@@ -612,6 +644,9 @@ class APIUserController extends Controller{
             }
 
             $member = $userData[0];
+            foreach (User::parentInfo($member->id) as $k => $v) {
+                $member->$k = $v;
+            }
 
             // Get education history
             $pendidikan = new Pendidikan();

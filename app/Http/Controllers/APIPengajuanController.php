@@ -806,6 +806,10 @@ class APIPengajuanController extends Controller
             // Get education history
             $detail->pendidikan = $this->pendidikan->getPendidikanByUser($detail->id_user);
 
+            foreach (User::parentInfo($detail->id_user) as $k => $v) {
+                $detail->$k = $v;
+            }
+
             $detail->id = "";
 
             return ResponseController::sendSuccess([
@@ -904,6 +908,10 @@ class APIPengajuanController extends Controller
             
             // Get education history
             $detail->pendidikan = $this->pendidikan->getPendidikanByUser($detail->id_user);
+
+            foreach (User::parentInfo($detail->id_user) as $k => $v) {
+                $detail->$k = $v;
+            }
 
             // Get prestasi SDM list
             $prestasiSDM = $this->prestasiSDM->getPrestasiSDMByPengajuan($detail->id);
@@ -1148,8 +1156,9 @@ class APIPengajuanController extends Controller
             // Notify user
             $user = User::find($pengajuan->id_user);
             $perkumpulan = Perkumpulan::find($pengajuan->id_perkumpulan);
-            if($user->fcm_token != null && !empty($user->fcm_token)){
-                GlobalHelperController::sendNotif([$user->fcm_token], "Pengajuan ".$tipe." disetujui", $perkumpulan->nama." telah menyetujui pengajuan anda", $pengajuan->id);
+            $tokens = User::notifTokens($user);
+            if(!empty($tokens)){
+                GlobalHelperController::sendNotif($tokens, User::notifTitle($user, "Pengajuan ".$tipe." disetujui"), $perkumpulan->nama." telah menyetujui pengajuan anda", $pengajuan->id);
             }
             
 
@@ -1226,8 +1235,9 @@ class APIPengajuanController extends Controller
             // Notify user
             $user = User::find($pengajuan->id_user);
             $perkumpulan = Perkumpulan::find($pengajuan->id_perkumpulan);
-            if($user->fcm_token != null && !empty($user->fcm_token)){
-                GlobalHelperController::sendNotif([$user->fcm_token], "Pengajuan ".$tipe." ditolak", $perkumpulan->nama." telah menolak pengajuan anda", $pengajuan->id);
+            $tokens = User::notifTokens($user);
+            if(!empty($tokens)){
+                GlobalHelperController::sendNotif($tokens, User::notifTitle($user, "Pengajuan ".$tipe." ditolak"), $perkumpulan->nama." telah menolak pengajuan anda", $pengajuan->id);
             }
             
             return ResponseController::sendSuccess([
@@ -1348,8 +1358,9 @@ class APIPengajuanController extends Controller
 
             // Notify user
             $user = User::find($pengajuan->id_user);
-            if($user->fcm_token != null && !empty($user->fcm_token)){
-                GlobalHelperController::sendNotif([$user->fcm_token], "Pengajuan ".$tipe." disetujui", "Perbasi Pemalang telah menyetujui pengajuan anda", $pengajuan->id);
+            $tokens = User::notifTokens($user);
+            if(!empty($tokens)){
+                GlobalHelperController::sendNotif($tokens, User::notifTitle($user, "Pengajuan ".$tipe." disetujui"), "Perbasi Pemalang telah menyetujui pengajuan anda", $pengajuan->id);
             }
             
 
@@ -1425,8 +1436,9 @@ class APIPengajuanController extends Controller
 
             // Notify user
             $user = User::find($pengajuan->id_user);
-            if($user->fcm_token != null && !empty($user->fcm_token)){
-                GlobalHelperController::sendNotif([$user->fcm_token], "Pengajuan ".$tipe." ditolak", "Perbasi Pemalang telah menolak pengajuan anda", $pengajuan->id);
+            $tokens = User::notifTokens($user);
+            if(!empty($tokens)){
+                GlobalHelperController::sendNotif($tokens, User::notifTitle($user, "Pengajuan ".$tipe." ditolak"), "Perbasi Pemalang telah menolak pengajuan anda", $pengajuan->id);
             }
 
             return ResponseController::sendSuccess([

@@ -206,6 +206,10 @@ Route::middleware(['jwt.verify'])->group(function () {
     Route::post('/pertandingan/checkin', [\App\Http\Controllers\APIPertandinganController::class, 'submitCheckin']);
     Route::post('/pertandingan/attendance-list', [\App\Http\Controllers\APIPertandinganController::class, 'getAttendanceList']);
 
+    // Parents mode (akun orang tua)
+    Route::post('/parent/children', [\App\Http\Controllers\APIParentController::class, 'getChildren']);
+    Route::post('/parent/child/add', [\App\Http\Controllers\APIParentController::class, 'addChild']);
+
     // Dashboard
     Route::post('/member/dashboard', [\App\Http\Controllers\APIDashboardController::class, 'getMemberDashboard']);
     Route::post('/dashboard/news/detail', [\App\Http\Controllers\APIDashboardController::class, 'getNewsDetail']);
